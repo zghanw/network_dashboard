@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Network Monitor</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
+<style>
+  :root { --bg:#0d1117; --panel:#161b22; --border:#30363d; --text:#e6edf3; --dim:#8b949e; --accent:#58a6ff; }
+  * { box-sizing:border-box; margin:0; }
+  body { background:var(--bg); color:var(--text); font:14px/1.4 "Segoe UI",system-ui,sans-serif; padding:16px; }
+  h1 { font-size:18px; margin-bottom:12px; display:flex; align-items:center; gap:10px; }
+  #status { font-size:12px; padding:2px 10px; border-radius:12px; background:#3d1d1d; color:#f85149; }
+  #status.ok { background:#1d3d2a; color:#3fb950; }
+  #error { color:#f85149; font-size:13px; margin-bottom:10px; display:none; }
+  .cards { display:grid; grid-template-columns:repeat(4,1fr); gap:12px; margin-bottom:12px; }
+  .card { background:var(--panel); border:1px solid var(--border); border-radius:8px; padding:12px 16px; }
+  .card .label { color:var(--dim); font-size:12px; text-transform:uppercase; }
+  .card .value { font-size:24px; font-weight:600; color:var(--accent); }
+  .row { display:grid; grid-template-columns:2fr 1fr 1fr; gap:12px; margin-bottom:12px; }
+  .panel { background:var(--panel); border:1px solid var(--border); border-radius:8px; padding:12px; }
+  .panel h2 { font-size:13px; color:var(--dim); text-transform:uppercase; margin-bottom:8px; }
+  .talker { display:flex; justify-content:space-between; font-size:13px; padding:3px 0; font-family:Consolas,monospace; }
+  .talker .bar { height:4px; background:var(--accent); border-radius:2px; margin-top:2px; }
+  .controls { display:flex; gap:10px; margin-bottom:8px; align-items:center; }
+  input[type=text] { background:var(--bg); border:1px solid var(--border); color:var(--text); border-radius:6px; padding:6px 10px; width:260px; }
+  button { background:var(--panel); border:1px solid var(--border); color:var(--text); border-radius:6px; padding:6px 14px; cursor:pointer; }
+  button.paused { color:#d29922; border-color:#d29922; }
+  table { width:100%; border-collapse:collapse; font-family:Consolas,monospace; font-size:12px; }
+  th { text-align:left; color:var(--dim); padding:4px 8px; border-bottom:1px solid var(--border); position:sticky; top:0; background:var(--panel); }
+  td { padding:3px 8px; border-bottom:1px solid #21262d; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:420px; }
+  #tablewrap { max-height:400px; overflow-y:auto; }
+  .proto { padding:1px 6px; border-radius:4px; font-size:11px; }
+</style>
+</head>
+<body>
+<h1>Network Monitor <span id="status">disconnected</span></h1>
+<div id="error"></div>
+
+<div class="cards">
+  <div class="card"><div class="label">Packets / sec</div><div class="value" id="pps">0</div></div>
+  <div class="card"><div class="label">Bandwidth</div><div class="value" id="bw">0 B/s</div></div>
+  <div class="card"><div class="label">Total packets</div><div class="value" id="total">0</div></div>
+  <div class="card"><div class="label">Total data</div><div class="value" id="totalbytes">0 B</div></div>
+</div>
+
+<div class="row">
+  <div class="panel"><h2>Bandwidth (last 60s)</h2><canvas id="bwChart" height="180"></canvas></div>
+  <div class="panel"><h2>Protocols</h2><canvas id="protoChart" height="180"></canvas></div>
+  <div class="panel"><h2>Top talkers</h2><div id="talkers"></div></div>
+</div>
+
+<div class="panel">
+  <div class="controls">
+    <h2 style="margin:0">Live packets</h2>
+    <input type="text" id="filter" placeholder="filter (ip, port, protocol...)">
+    <button id="pause">Pause</button>
+  </div>
+  <div id="tablewrap">
+    <table>
+      <thead><tr><th>Time</th><th>Source</th><th>Destination</th><th>Proto</th><th>Len</th><th>Info</th></tr></thead>
+      <tbody id="rows"></tbody>
+    </table>
+  </div>
+</div>
+
+<script>
+const PROTO_COLORS = { HTTP:"#3fb950", HTTPS:"#2ea043", DNS:"#58a6ff", TCP:"#8b949e",
+  UDP:"#d29922", ARP:"#bc8cff", ICMP:"#f85149", mDNS:"#79c0ff", SSDP:"#ffa657" };
+const fmtBytes = n => n < 1024 ? n + " B" : n < 1048576 ? (n/1024).toFixed(1) + " KB"
+  : n < 1073741824 ? (n/1048576).toFixed(1) + " MB" : (n/1073741824).toFixed(2) + " GB";
+
+const bwChart = new Chart(document.getElementById("bwChart"), {
+  type: "line",
+  data: { labels: Array(60).fill(""), datasets: [{ data: Array(60).fill(0),
+    borderColor: "#58a6ff", backgroundColor: "#58a6ff22", fill: true, pointRadius: 0, tension: .3 }] },
+  options: { animation: false, plugins: { legend: { display: false } },
+    scales: { x: { display: false }, y: { beginAtZero: true, grid: { color: "#21262d" },
+      ticks: { color: "#8b949e", callback: v => fmtBytes(v) + "/s" } } } }
+});
+const protoChart = new Chart(document.getElementById("protoChart"), {
+  type: "doughnut",
+  data: { labels: [], datasets: [{ data: [], borderWidth: 0 }] },
+  options: { animation: false, plugins: { legend: { position: "right",
+    labels: { color: "#e6edf3", boxWidth: 12, font: { size: 11 } } } } }
+});
+
+let paused = false;
+document.getElementById("pause").onclick = e => {
+  paused = !paused;
+  e.target.textContent = paused ? "Resume" : "Pause";
+  e.target.classList.toggle("paused", paused);
+};
+
+const rowsEl = document.getElementById("rows");
+function addRows(packets) {
+  const filter = document.getElementById("filter").value.toLowerCase();
+  for (const p of packets) {
+    const text = `${p.src} ${p.dst} ${p.proto} ${p.info}`.toLowerCase();
+    if (filter && !text.includes(filter)) continue;
+    const tr = document.createElement("tr");
+    const color = PROTO_COLORS[p.proto] || "#8b949e";
+    tr.innerHTML = `<td>${p.time}</td><td>${p.src}</td><td>${p.dst}</td>
+      <td><span class="proto" style="color:${color};border:1px solid ${color}44">${p.proto}</span></td>
+      <td>${p.len}</td><td title="${p.info.replaceAll('"',"&quot;")}">${p.info}</td>`;
+    rowsEl.prepend(tr);
+  }
+  while (rowsEl.children.length > 300) rowsEl.lastChild.remove();
+}
+
+function connect() {
+  const sock = new WebSocket(`ws://${location.host}/ws`);
+  const status = document.getElementById("status");
+  sock.onopen = () => { status.textContent = "live"; status.classList.add("ok"); };
+  sock.onclose = () => { status.textContent = "disconnected"; status.classList.remove("ok"); setTimeout(connect, 2000); };
+  sock.onmessage = ev => {
+    const d = JSON.parse(ev.data);
+    const err = document.getElementById("error");
+    err.style.display = d.error ? "block" : "none";
+    err.textContent = d.error || "";
+    document.getElementById("pps").textContent = d.pps;
+    document.getElementById("bw").textContent = fmtBytes(d.bps) + "/s";
+    document.getElementById("total").textContent = d.total_packets.toLocaleString();
+    document.getElementById("totalbytes").textContent = fmtBytes(d.total_bytes);
+
+    bwChart.data.datasets[0].data.push(d.bps);
+    bwChart.data.datasets[0].data.shift();
+    bwChart.update();
+
+    protoChart.data.labels = Object.keys(d.protocols);
+    protoChart.data.datasets[0].data = Object.values(d.protocols);
+    protoChart.data.datasets[0].backgroundColor = protoChart.data.labels.map(l => PROTO_COLORS[l] || "#6e7681");
+    protoChart.update();
+
+    const max = d.talkers.length ? d.talkers[0][1] : 1;
+    document.getElementById("talkers").innerHTML = d.talkers.map(([ip, bytes]) =>
+      `<div class="talker"><div style="flex:1"><div>${ip}</div>
+       <div class="bar" style="width:${Math.max(2, bytes/max*100)}%"></div></div>
+       <div style="color:#8b949e">${fmtBytes(bytes)}</div></div>`).join("");
+
+    if (!paused && d.packets.length) addRows(d.packets);
+  };
+}
+connect();
+</script>
+</body>
+</html>
