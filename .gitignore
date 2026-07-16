@@ -25,3 +25,4 @@ Thumbs.db
 
 # Local tooling config
 .claude/
+.gstack/

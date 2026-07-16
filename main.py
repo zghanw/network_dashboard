@@ -8,6 +8,7 @@ import json
 import threading
 import time
 from collections import Counter, deque
+from urllib.parse import urlparse
 
 import uvicorn
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
@@ -82,8 +83,18 @@ def index():
     return FileResponse("static/index.html")
 
 
+def origin_allowed(origin):
+    """CSWSH guard: browsers always send Origin, so block any cross-site page from
+    reading the live capture. None means a non-browser client (curl, python), not subject
+    to the same-origin risk, so allow it. Host-only check ignores port (any local port is us)."""
+    return origin is None or urlparse(origin).hostname in ("localhost", "127.0.0.1")
+
+
 @app.websocket("/ws")
 async def ws(sock: WebSocket):
+    if not origin_allowed(sock.headers.get("origin")):
+        await sock.close(code=1008)  # policy violation: cross-site WebSocket hijacking attempt
+        return
     await sock.accept()
     with LOCK:
         last_id = STATE["next_id"]
