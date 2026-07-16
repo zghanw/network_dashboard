@@ -132,6 +132,24 @@
   @keyframes pulse { 0%,100%{opacity:1;} 50%{opacity:.35;} }
   @keyframes scan { 0%{transform:translateX(-100%);} 100%{transform:translateX(100%);} }
 
+  /* ---------- Tabs ---------- */
+  .tabs { display:flex; gap:2px; margin-bottom:14px; border-bottom:1px solid var(--border); }
+  .tab { background:none; border:none; color:var(--dim); cursor:pointer; margin-bottom:-1px;
+    font:600 12px var(--sans); letter-spacing:.4px; padding:10px 16px; display:flex; align-items:center; gap:8px;
+    border-bottom:2px solid transparent; transition:color .15s ease, border-color .15s ease; }
+  .tab:hover { color:var(--text); }
+  .tab.active { color:var(--text); border-bottom-color:var(--cyan); }
+  .tab:focus-visible { outline:2px solid var(--cyan); outline-offset:-2px; border-radius:4px; }
+  .tab .soon-pill { font:600 9px/1 var(--mono); letter-spacing:.5px; text-transform:uppercase;
+    color:var(--faint); border:1px solid var(--border-bright); border-radius:10px; padding:2px 6px; }
+  .tab-panel { display:none; }
+  .tab-panel.active { display:block; }
+  .soon { display:grid; place-items:center; min-height:360px; text-align:center;
+    border:1px dashed var(--border-bright); border-radius:12px; padding:40px 24px; }
+  .soon .phase { font:600 10px/1 var(--mono); letter-spacing:1.5px; text-transform:uppercase; color:var(--cyan); margin-bottom:14px; }
+  .soon h3 { font:600 16px var(--sans); color:var(--text); margin-bottom:8px; }
+  .soon p { font:400 13px/1.6 var(--sans); color:var(--dim); max-width:460px; }
+
   /* ---------- Responsive ---------- */
   @media (max-width:1100px) { .kpis{grid-template-columns:repeat(3,1fr);} .grid{grid-template-columns:1fr;} }
   @media (max-width:640px) { .kpis{grid-template-columns:repeat(2,1fr);} #filter{width:100%;} .search{width:100%;} }
@@ -163,6 +181,16 @@
     <path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg>
   <span id="error-msg"></span>
 </div>
+
+<nav class="tabs" role="tablist" aria-label="Views">
+  <button class="tab active" data-tab="overview" role="tab" aria-selected="true">Overview</button>
+  <button class="tab" data-tab="graph" role="tab" aria-selected="false">Graph <span class="soon-pill">soon</span></button>
+  <button class="tab" data-tab="alerts" role="tab" aria-selected="false">Alerts <span class="soon-pill">soon</span></button>
+  <button class="tab" data-tab="flows" role="tab" aria-selected="false">Flows <span class="soon-pill">soon</span></button>
+  <button class="tab" data-tab="history" role="tab" aria-selected="false">History <span class="soon-pill">soon</span></button>
+</nav>
+
+<section id="tab-overview" class="tab-panel active" role="tabpanel" aria-label="Overview">
 
 <div class="kpis">
   <div class="kpi" style="--accent:var(--green)"><div class="label">Packets / sec</div><div class="value" id="pps">0</div><div class="sub" id="pps-sub">idle</div></div>
@@ -199,6 +227,40 @@
     </table>
   </div>
 </div>
+
+</section>
+
+<section id="tab-graph" class="tab-panel" role="tabpanel" aria-label="Graph">
+  <div class="soon"><div>
+    <div class="phase">Phase 2</div>
+    <h3>Live connection graph</h3>
+    <p>Every device on your network as a node, every conversation as a moving edge, updating live. Click a node to filter it down.</p>
+  </div></div>
+</section>
+
+<section id="tab-alerts" class="tab-panel" role="tabpanel" aria-label="Alerts">
+  <div class="soon"><div>
+    <div class="phase">Phase 4</div>
+    <h3>Threat detection</h3>
+    <p>Port scans, ARP spoofing, DNS anomalies, and new-device alerts, flagged live from the packets already flowing through the capture.</p>
+  </div></div>
+</section>
+
+<section id="tab-flows" class="tab-panel" role="tabpanel" aria-label="Flows">
+  <div class="soon"><div>
+    <div class="phase">Phase 5</div>
+    <h3>Connections, not packets</h3>
+    <p>Packets grouped into flows by the 5-tuple (source, destination, ports, protocol), with bytes and duration per connection.</p>
+  </div></div>
+</section>
+
+<section id="tab-history" class="tab-panel" role="tabpanel" aria-label="History">
+  <div class="soon"><div>
+    <div class="phase">Phase 5</div>
+    <h3>Timeline replay</h3>
+    <p>Everything persisted to disk, with a scrubber to drag back through time and replay what happened on your network.</p>
+  </div></div>
+</section>
 
 <script>
 // Semantic protocol colors — attention protocols (recon/spoofing/tunneling/C2) lean red/amber/purple.
@@ -266,6 +328,18 @@ $("pause").onclick = e => {
   e.currentTarget.classList.toggle("paused", paused);
   e.currentTarget.querySelector("span").textContent = paused ? "Paused" : "Pause";
 };
+
+// ---- Tabs ----
+document.querySelectorAll(".tab").forEach(tab => {
+  tab.onclick = () => {
+    for (const t of document.querySelectorAll(".tab")) {
+      t.classList.toggle("active", t === tab);
+      t.setAttribute("aria-selected", t === tab);
+    }
+    for (const p of document.querySelectorAll(".tab-panel"))
+      p.classList.toggle("active", p.id === "tab-" + tab.dataset.tab);
+  };
+});
 
 const rowsEl = $("rows");
 let shown = 0;
