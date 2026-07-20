@@ -25,6 +25,7 @@ STATE = {
     "total_bytes": 0,
     "protocols": Counter(),
     "talkers": Counter(),  # bytes per source IP
+    "edges": Counter(),  # bytes per (src ip, dst ip) pair, for the connection graph
     "error": None,  # sniffer startup failure, shown in the UI
 }
 

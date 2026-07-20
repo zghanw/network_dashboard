@@ -26,3 +26,15 @@ Thumbs.db
 # Local tooling config
 .claude/
 .gstack/
+.gemini/
+
+# Packet captures & log files
+*.pcap
+*.pcapng
+*.cap
+*.log
+
+# Python packaging
+build/
+dist/
+*.egg-info/
