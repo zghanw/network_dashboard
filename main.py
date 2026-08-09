@@ -75,7 +75,9 @@ def on_packet(pkt):
         STATE["total_bytes"] += row["len"]
         STATE["protocols"][row["proto"]] += 1
         src_ip = row["src"].rsplit(":", 1)[0]
+        dst_ip = row["dst"].rsplit(":", 1)[0]
         STATE["talkers"][src_ip] += row["len"]
+        STATE["edges"][(src_ip, dst_ip)] += row["len"]
         RECENT.append(row)
 
 
@@ -113,6 +115,7 @@ async def ws(sock: WebSocket):
                     "total_bytes": STATE["total_bytes"],
                     "protocols": dict(STATE["protocols"].most_common(8)),
                     "talkers": STATE["talkers"].most_common(8),
+                    "edges": [[s, d, b] for (s, d), b in STATE["edges"].most_common(60)],
                     "error": STATE["error"],
                     "packets": new[-100:],  # cap per tick; table doesn't need more
                 }

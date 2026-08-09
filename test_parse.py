@@ -17,6 +17,7 @@ assert arp["proto"] == "ARP", arp
 on_packet(Ether() / IP(src="192.168.1.10", dst="1.1.1.1") / TCP(dport=443))
 assert STATE["total_packets"] == 1 and STATE["protocols"]["HTTPS"] == 1
 assert STATE["talkers"]["192.168.1.10"] == STATE["total_bytes"] > 0
+assert STATE["edges"][("192.168.1.10", "1.1.1.1")] == STATE["total_bytes"] > 0  # graph edge tracked
 assert len(RECENT) == 1 and RECENT[0]["id"] == 0
 
 # CSWSH origin guard: same-host and non-browser clients allowed, cross-site rejected.

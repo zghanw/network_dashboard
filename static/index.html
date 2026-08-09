@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Network Monitor — SOC Console</title>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
+<script src="https://cdn.jsdelivr.net/npm/force-graph@1"></script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
@@ -33,12 +34,7 @@
   header {
     display:flex; align-items:center; gap:14px; padding:12px 16px; margin-bottom:14px;
     background:linear-gradient(180deg,var(--panel2),var(--panel));
-    border:1px solid var(--border); border-radius:12px; position:relative; overflow:hidden;
-  }
-  header::after {
-    content:""; position:absolute; left:0; top:0; height:1px; width:100%;
-    background:linear-gradient(90deg,transparent,var(--scan),transparent);
-    animation:scan 4s linear infinite;
+    border:1px solid var(--border); border-radius:12px;
   }
   .logo { width:34px; height:34px; border-radius:9px; display:grid; place-items:center;
     background:radial-gradient(circle at 30% 30%,rgba(34,211,238,.25),rgba(34,211,238,.06));
@@ -55,7 +51,7 @@
     background:rgba(248,113,113,.10); color:var(--red); border:1px solid rgba(248,113,113,.3);
   }
   #status::before { content:""; position:absolute; left:11px; top:50%; transform:translateY(-50%);
-    width:8px; height:8px; border-radius:50%; background:currentColor; box-shadow:0 0 8px currentColor; }
+    width:8px; height:8px; border-radius:50%; background:currentColor; }
   #status.ok { background:rgba(52,211,153,.10); color:var(--green); border-color:rgba(52,211,153,.3); }
   #status.ok::before { animation:pulse 1.4s ease-in-out infinite; }
 
@@ -69,11 +65,8 @@
   /* ---------- KPI strip ---------- */
   .kpis { display:grid; grid-template-columns:repeat(6,1fr); gap:10px; margin-bottom:14px; }
   .kpi {
-    background:linear-gradient(180deg,var(--panel2),var(--panel));
-    border:1px solid var(--border); border-radius:10px; padding:12px 14px;
-    position:relative; overflow:hidden;
+    background:var(--panel); border:1px solid var(--border); border-radius:10px; padding:12px 14px;
   }
-  .kpi::before { content:""; position:absolute; left:0; top:0; bottom:0; width:3px; background:var(--accent,var(--cyan)); opacity:.85; }
   .kpi .label { color:var(--dim); font:500 10px/1 var(--sans); letter-spacing:1.2px; text-transform:uppercase; }
   .kpi .value { margin-top:8px; font:700 26px/1 var(--mono); color:var(--accent,var(--cyan)); font-variant-numeric:tabular-nums; }
   .kpi .sub { margin-top:5px; font:500 10px/1 var(--mono); color:var(--faint); letter-spacing:.5px; }
@@ -84,7 +77,7 @@
     border:1px solid var(--border); border-radius:12px; padding:14px; min-width:0; }
   .panel h2 { font:600 11px/1 var(--sans); color:var(--dim); letter-spacing:1.4px;
     text-transform:uppercase; margin-bottom:12px; display:flex; align-items:center; gap:7px; }
-  .panel h2 .dot { width:6px; height:6px; border-radius:50%; background:var(--cyan); box-shadow:0 0 6px var(--cyan); }
+  .panel h2 .dot { width:6px; height:6px; border-radius:50%; background:var(--cyan); }
 
   .talker { font:500 12px/1 var(--mono); padding:7px 0; border-bottom:1px solid var(--border); }
   .talker:last-child { border-bottom:0; }
@@ -92,8 +85,7 @@
   .talker .ip { color:var(--text); }
   .talker .bytes { color:var(--dim); font-size:11px; }
   .talker .track { height:5px; background:rgba(148,163,184,.10); border-radius:3px; overflow:hidden; }
-  .talker .bar { height:100%; border-radius:3px; background:linear-gradient(90deg,var(--blue),var(--cyan));
-    transition:width .4s ease; }
+  .talker .bar { height:100%; border-radius:3px; background:linear-gradient(90deg,var(--blue),var(--cyan)); }
   .empty { color:var(--faint); font:500 12px/1.5 var(--mono); padding:8px 0; }
 
   /* ---------- Live feed ---------- */
@@ -107,7 +99,7 @@
   #filter::placeholder { color:var(--faint); }
   #pause { background:var(--bg2); border:1px solid var(--border-bright); color:var(--dim);
     border-radius:8px; padding:8px 14px; cursor:pointer; font:600 12px var(--sans);
-    display:flex; align-items:center; gap:6px; transition:all .15s ease; }
+    display:flex; align-items:center; gap:6px; transition:color .15s ease, border-color .15s ease, background-color .15s ease; }
   #pause:hover { border-color:var(--cyan); color:var(--text); }
   #pause.paused { color:var(--amber); border-color:rgba(251,191,36,.5); background:rgba(251,191,36,.08); }
   #pause svg { width:13px; height:13px; }
@@ -130,7 +122,6 @@
   tbody tr.new td { animation:rowin 1s ease-out; }
 
   @keyframes pulse { 0%,100%{opacity:1;} 50%{opacity:.35;} }
-  @keyframes scan { 0%{transform:translateX(-100%);} 100%{transform:translateX(100%);} }
 
   /* ---------- Tabs ---------- */
   .tabs { display:flex; gap:2px; margin-bottom:14px; border-bottom:1px solid var(--border); }
@@ -150,12 +141,25 @@
   .soon h3 { font:600 16px var(--sans); color:var(--text); margin-bottom:8px; }
   .soon p { font:400 13px/1.6 var(--sans); color:var(--dim); max-width:460px; }
 
+  /* ---------- Graph ---------- */
+  .graphwrap { position:relative; height:calc(100dvh - 220px); min-height:440px;
+    border:1px solid var(--border); border-radius:12px; overflow:hidden; background:var(--bg2); }
+  #graph { position:absolute; inset:0; }
+  .graph-legend { position:absolute; left:16px; top:14px; z-index:2; display:flex; gap:18px;
+    font:500 11px var(--mono); color:var(--dim); }
+  .graph-legend span { display:flex; align-items:center; gap:7px; }
+  .graph-legend i { width:9px; height:9px; border-radius:50%; }
+  .graph-hint { position:absolute; right:16px; bottom:14px; z-index:2;
+    font:500 11px var(--mono); color:var(--faint); }
+  .graph-empty { position:absolute; inset:0; display:grid; place-items:center; z-index:1;
+    color:var(--faint); font:500 13px var(--mono); pointer-events:none; }
+
   /* ---------- Responsive ---------- */
   @media (max-width:1100px) { .kpis{grid-template-columns:repeat(3,1fr);} .grid{grid-template-columns:1fr;} }
   @media (max-width:640px) { .kpis{grid-template-columns:repeat(2,1fr);} #filter{width:100%;} .search{width:100%;} }
 
   @media (prefers-reduced-motion:reduce) {
-    *, header::after { animation:none !important; transition:none !important; }
+    * { animation:none !important; transition:none !important; }
   }
 </style>
 </head>
@@ -203,13 +207,13 @@
 
 <div class="grid">
   <div class="panel"><h2><span class="dot"></span>Throughput · Last 60s</h2><canvas id="bwChart" height="200"></canvas></div>
-  <div class="panel"><h2><span class="dot" style="background:var(--purple);box-shadow:0 0 6px var(--purple)"></span>Protocol Mix</h2><canvas id="protoChart" height="200"></canvas></div>
-  <div class="panel"><h2><span class="dot" style="background:var(--blue);box-shadow:0 0 6px var(--blue)"></span>Top Talkers</h2><div id="talkers"><div class="empty">Awaiting traffic…</div></div></div>
+  <div class="panel"><h2><span class="dot" style="background:var(--purple)"></span>Protocol Mix</h2><canvas id="protoChart" height="200"></canvas></div>
+  <div class="panel"><h2><span class="dot" style="background:var(--blue)"></span>Top Talkers</h2><div id="talkers"><div class="empty">Awaiting traffic…</div></div></div>
 </div>
 
 <div class="panel">
   <div class="feed-head">
-    <h2><span class="dot" style="background:var(--green);box-shadow:0 0 6px var(--green)"></span>Live Packet Feed</h2>
+    <h2><span class="dot" style="background:var(--green)"></span>Live Packet Feed</h2>
     <span class="count" id="count">0 shown</span>
     <div class="search">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
@@ -231,11 +235,15 @@
 </section>
 
 <section id="tab-graph" class="tab-panel" role="tabpanel" aria-label="Graph">
-  <div class="soon"><div>
-    <div class="phase">Phase 2</div>
-    <h3>Live connection graph</h3>
-    <p>Every device on your network as a node, every conversation as a moving edge, updating live. Click a node to filter it down.</p>
-  </div></div>
+  <div class="graphwrap">
+    <div class="graph-legend">
+      <span><i style="background:var(--green)"></i>Your network</span>
+      <span><i style="background:var(--blue)"></i>External</span>
+    </div>
+    <div id="graph"></div>
+    <div class="graph-empty" id="graph-empty">Awaiting traffic…</div>
+    <div class="graph-hint">drag to pan · scroll to zoom · click a node to focus</div>
+  </div>
 </section>
 
 <section id="tab-alerts" class="tab-panel" role="tabpanel" aria-label="Alerts">
@@ -329,6 +337,57 @@ $("pause").onclick = e => {
   e.currentTarget.querySelector("span").textContent = paused ? "Paused" : "Pause";
 };
 
+// ---- Connection graph (Phase 2) ----
+// RFC1918 + loopback/link-local = "your network" (green); everything else external (blue).
+const isLocal = ip => /^(10\.|127\.|169\.254\.|192\.168\.|172\.(1[6-9]|2\d|3[01])\.)/.test(ip)
+  || ip === "::1" || ip.startsWith("fe80");
+let graph = null, latestEdges = [];
+const gNodes = new Map();                          // id -> node object, kept across ticks so layout is stable
+
+function ensureGraph() {
+  if (graph || typeof ForceGraph === "undefined") return;
+  const el = $("graph");
+  graph = ForceGraph()(el)
+    .width(el.clientWidth).height(el.clientHeight)
+    .backgroundColor("rgba(0,0,0,0)")
+    .nodeRelSize(5)
+    .nodeVal(n => n.local ? 3 : 1.5)
+    .nodeColor(n => n.local ? "#34d399" : "#60a5fa")
+    .nodeLabel(n => n.id)
+    .linkColor(() => "rgba(148,163,184,0.22)")
+    .linkDirectionalParticles(2)
+    .linkDirectionalParticleWidth(1.8)
+    .linkDirectionalParticleColor(() => "#22d3ee")
+    .onNodeClick(n => { graph.centerAt(n.x, n.y, 600); graph.zoom(4, 600); });
+}
+
+function drawGraph(edges) {
+  if (!graph) return;
+  const seen = new Set(), links = [];
+  for (const [s, d, b] of edges) {
+    for (const id of [s, d]) if (!gNodes.has(id)) gNodes.set(id, { id, local: isLocal(id) });
+    seen.add(s); seen.add(d);
+    links.push({ source: s, target: d, value: b });
+  }
+  for (const id of [...gNodes.keys()]) if (!seen.has(id)) gNodes.delete(id);   // drop nodes no longer in the top edges
+  graph.graphData({ nodes: [...gNodes.values()], links });
+  $("graph-empty").style.display = edges.length ? "none" : "grid";
+}
+
+function showGraph() {                             // lazy-init: the container has real size only once visible
+  ensureGraph();
+  if (!graph) return;
+  const el = $("graph");
+  graph.width(el.clientWidth).height(el.clientHeight);
+  drawGraph(latestEdges);
+}
+
+addEventListener("resize", () => {
+  if (graph && $("tab-graph").classList.contains("active")) {
+    const el = $("graph"); graph.width(el.clientWidth).height(el.clientHeight);
+  }
+});
+
 // ---- Tabs ----
 document.querySelectorAll(".tab").forEach(tab => {
   tab.onclick = () => {
@@ -338,6 +397,7 @@ document.querySelectorAll(".tab").forEach(tab => {
     }
     for (const p of document.querySelectorAll(".tab-panel"))
       p.classList.toggle("active", p.id === "tab-" + tab.dataset.tab);
+    if (tab.dataset.tab === "graph") showGraph();
   };
 });
 
@@ -400,6 +460,10 @@ function connect() {
       `<div class="talker"><div class="top"><span class="ip">${esc(ip)}</span><span class="bytes">${fmtBytes(b)}</span></div>`+
       `<div class="track"><div class="bar" style="width:${Math.max(3, b/max*100)}%"></div></div></div>`).join("")
       : `<div class="empty">Awaiting traffic…</div>`;
+
+    // Connection graph (draw only when its tab is visible; keep latest edges regardless)
+    latestEdges = d.edges || [];
+    if (graph && $("tab-graph").classList.contains("active")) drawGraph(latestEdges);
 
     if (!paused && d.packets.length) addRows(d.packets);
     else if (paused) $("count").textContent = rowsEl.children.length + " shown · PAUSED";
