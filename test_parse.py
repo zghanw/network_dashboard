@@ -1,7 +1,7 @@
 """Self-check for the parse/classify path. Runs without Npcap: python test_parse.py"""
 from scapy.all import ARP, DNS, DNSQR, IP, TCP, UDP, Ether
 
-from main import RECENT, STATE, on_packet, origin_allowed, parse
+from main import RECENT, STATE, is_local, on_packet, origin_allowed, parse, vendor
 
 https = parse(Ether() / IP(src="192.168.1.10", dst="1.1.1.1") / TCP(sport=51000, dport=443))
 assert https["proto"] == "HTTPS", https
@@ -26,5 +26,12 @@ assert origin_allowed("http://localhost:8000")       # same-origin page load
 assert origin_allowed("http://127.0.0.1:8000")
 assert not origin_allowed("https://evil.com")         # cross-site attacker page
 assert not origin_allowed("http://localhost.evil.com")  # suffix trick must not pass
+
+# Enrichment: local-range detection and MAC-vendor (OUI) lookup.
+assert is_local("192.168.1.5") and is_local("10.0.0.1") and is_local("127.0.0.1")
+assert not is_local("8.8.8.8") and not is_local("1.1.1.1")
+assert vendor("ac:de:48:11:22:33") == "Apple"      # known OUI prefix
+assert vendor("b8:27:eb:00:00:01") == "Raspberry Pi"
+assert vendor("ff:ff:ff:ff:ff:ff") is None and vendor(None) is None
 
 print("all checks passed")
