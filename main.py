@@ -18,6 +18,9 @@ from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.responses import FileResponse
 from scapy.all import ARP, DNS, ICMP, IP, IPv6, TCP, UDP, AsyncSniffer, Ether
 
+import geoip
+from detectors import detect
+
 app = FastAPI()
 
 LOCK = threading.Lock()
@@ -30,6 +33,8 @@ STATE = {
     "talkers": Counter(),  # bytes per source IP
     "edges": Counter(),  # bytes per (src ip, dst ip) pair, for the connection graph
     "macs": {},  # local ip -> sender MAC, for vendor lookup
+    "alerts": deque(maxlen=200),  # recent detector hits, newest first
+    "alert_count": 0,  # running total, for the Alerts tab badge
     "error": None,  # sniffer startup failure, shown in the UI
 }
 
@@ -56,6 +61,7 @@ OUI_VENDORS = {
 }
 
 NAMES = {}                                    # ip -> label (None = looked up, no name found)
+GEO = {}                                      # ip -> 2-letter country code (external hosts, if DB present)
 _resolving = set()                            # ips a worker is currently resolving
 _pool = ThreadPoolExecutor(max_workers=4)
 
@@ -75,7 +81,8 @@ def vendor(mac):
 
 
 def _resolve(ip):
-    """Worker: LAN -> MAC vendor, external -> reverse DNS. Cache under LOCK (None caches a miss)."""
+    """Worker: LAN -> MAC vendor, external -> reverse DNS + country. Cache under LOCK."""
+    cc = None
     if is_local(ip):
         with LOCK:
             label = vendor(STATE["macs"].get(ip)) or "LAN device"
@@ -84,8 +91,10 @@ def _resolve(ip):
             label = socket.gethostbyaddr(ip)[0]
         except (socket.herror, socket.gaierror, OSError):
             label = None
+        cc = geoip.country(ip)   # None unless the offline DB is installed
     with LOCK:
         NAMES[ip] = label
+        GEO[ip] = cc
         _resolving.discard(ip)
 
 
@@ -145,6 +154,9 @@ def on_packet(pkt):
         STATE["edges"][(src_ip, dst_ip)] += row["len"]
         if Ether in pkt and is_local(src_ip):
             STATE["macs"][src_ip] = pkt[Ether].src  # sender's real MAC (only meaningful on our segment)
+        for a in detect(row, pkt):   # detector state is capture-thread-only; alerts live under LOCK
+            STATE["alerts"].appendleft(a)
+            STATE["alert_count"] += 1
         RECENT.append(row)
 
 
@@ -187,6 +199,9 @@ async def ws(sock: WebSocket):
                     "talkers": talkers,
                     "edges": edges,
                     "names": {ip: NAMES[ip] for ip in rel if NAMES.get(ip)},
+                    "geo": {ip: GEO[ip] for ip in rel if GEO.get(ip)},
+                    "alerts": list(STATE["alerts"])[:60],
+                    "alert_count": STATE["alert_count"],
                     "error": STATE["error"],
                     "packets": new[-100:],  # cap per tick; table doesn't need more
                 }

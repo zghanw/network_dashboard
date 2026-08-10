@@ -8,7 +8,7 @@
 <script src="https://cdn.jsdelivr.net/npm/force-graph@1"></script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
 <style>
   :root {
     --bg:#080b12; --bg2:#0b0f18; --panel:#0e1420; --panel2:#111827;
@@ -16,7 +16,7 @@
     --text:#e6edf3; --dim:#8b98ac; --faint:#5b6a80;
     --cyan:#22d3ee; --green:#34d399; --blue:#60a5fa; --amber:#fbbf24;
     --red:#f87171; --purple:#a78bfa; --scan:rgba(34,211,238,.7);
-    --sans:"Inter",system-ui,"Segoe UI",sans-serif;
+    --sans:"IBM Plex Sans",system-ui,"Segoe UI",sans-serif;
     --mono:"JetBrains Mono",Consolas,ui-monospace,monospace;
   }
   * { box-sizing:border-box; margin:0; }
@@ -40,7 +40,7 @@
     background:radial-gradient(circle at 30% 30%,rgba(34,211,238,.25),rgba(34,211,238,.06));
     border:1px solid var(--border-bright); color:var(--cyan); flex-shrink:0; }
   .logo svg { width:20px; height:20px; }
-  .titles h1 { font-size:16px; font-weight:700; letter-spacing:.5px; }
+  .titles h1 { font-size:21px; font-weight:700; letter-spacing:-.3px; line-height:1.1; }
   .titles p { font-size:11px; color:var(--dim); letter-spacing:1.5px; text-transform:uppercase; }
   .head-right { margin-left:auto; display:flex; align-items:center; gap:16px; }
   .clock { font:500 12px/1 var(--mono); color:var(--faint); text-align:right; }
@@ -154,6 +154,22 @@
   .graph-empty { position:absolute; inset:0; display:grid; place-items:center; z-index:1;
     color:var(--faint); font:500 13px var(--mono); pointer-events:none; }
 
+  /* ---------- Alerts ---------- */
+  .tab-badge { font:700 10px var(--mono); color:var(--red); background:rgba(248,113,113,.14);
+    border-radius:10px; padding:2px 7px; }
+  .alerts-wrap { border:1px solid var(--border); border-radius:12px; overflow:hidden; }
+  .alert { display:flex; gap:12px; align-items:baseline; padding:11px 14px; border-bottom:1px solid var(--border); }
+  .alert:last-child { border-bottom:0; }
+  .alert .sev { font:700 9px var(--mono); letter-spacing:.5px; text-transform:uppercase;
+    padding:3px 7px; border-radius:5px; flex-shrink:0; }
+  .alert.high .sev { color:var(--red); background:rgba(248,113,113,.12); }
+  .alert.med  .sev { color:var(--amber); background:rgba(251,191,36,.12); }
+  .alert.low  .sev { color:var(--blue); background:rgba(96,165,250,.12); }
+  .alert .kind { font:600 12px var(--sans); color:var(--text); flex-shrink:0; }
+  .alert .msg { font:500 12px var(--mono); color:var(--dim); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .alert .at { margin-left:auto; font:500 11px var(--mono); color:var(--faint); flex-shrink:0; }
+  .alerts-empty { padding:44px 24px; text-align:center; color:var(--faint); font:500 13px/1.6 var(--mono); }
+
   /* ---------- Responsive ---------- */
   @media (max-width:1100px) { .kpis{grid-template-columns:repeat(3,1fr);} .grid{grid-template-columns:1fr;} }
   @media (max-width:640px) { .kpis{grid-template-columns:repeat(2,1fr);} #filter{width:100%;} .search{width:100%;} }
@@ -189,7 +205,7 @@
 <nav class="tabs" role="tablist" aria-label="Views">
   <button class="tab active" data-tab="overview" role="tab" aria-selected="true">Overview</button>
   <button class="tab" data-tab="graph" role="tab" aria-selected="false">Graph <span class="soon-pill">soon</span></button>
-  <button class="tab" data-tab="alerts" role="tab" aria-selected="false">Alerts <span class="soon-pill">soon</span></button>
+  <button class="tab" data-tab="alerts" role="tab" aria-selected="false">Alerts <span class="tab-badge" id="alert-badge" hidden></span></button>
   <button class="tab" data-tab="flows" role="tab" aria-selected="false">Flows <span class="soon-pill">soon</span></button>
   <button class="tab" data-tab="history" role="tab" aria-selected="false">History <span class="soon-pill">soon</span></button>
 </nav>
@@ -247,10 +263,8 @@
 </section>
 
 <section id="tab-alerts" class="tab-panel" role="tabpanel" aria-label="Alerts">
-  <div class="soon"><div>
-    <div class="phase">Phase 4</div>
-    <h3>Threat detection</h3>
-    <p>Port scans, ARP spoofing, DNS anomalies, and new-device alerts, flagged live from the packets already flowing through the capture.</p>
+  <div class="alerts-wrap"><div id="alerts">
+    <div class="alerts-empty">No alerts yet.<br>Watching for port scans, ARP spoofing, DNS anomalies, and new devices.</div>
   </div></div>
 </section>
 
@@ -308,7 +322,7 @@ const centerText = { id:"centerText", afterDraw(c){
   x.save(); x.textAlign="center"; x.textBaseline="middle";
   x.fillStyle="#e6edf3"; x.font='700 22px "JetBrains Mono",monospace';
   x.fillText(Math.round(d[m]/total*100)+"%", cx, cy-9);
-  x.fillStyle="#8b98ac"; x.font='600 10px Inter,sans-serif';
+  x.fillStyle="#8b98ac"; x.font='600 10px "IBM Plex Sans",sans-serif';
   x.fillText((c.data.labels[m]||"").toUpperCase(), cx, cy+13);
   x.restore();
 }};
@@ -316,7 +330,7 @@ const protoChart = new Chart(document.getElementById("protoChart"), {
   type:"doughnut",
   data:{ labels:[], datasets:[{ data:[], backgroundColor:[], borderWidth:0 }] },
   options:{ animation:false, cutout:"68%", plugins:{ legend:{ position:"bottom",
-    labels:{ color:"#8b98ac", boxWidth:9, boxHeight:9, padding:9, font:{family:"Inter",size:11} } } } },
+    labels:{ color:"#8b98ac", boxWidth:9, boxHeight:9, padding:9, font:{family:"IBM Plex Sans",size:11} } } } },
   plugins:[centerText]
 });
 
@@ -341,7 +355,7 @@ $("pause").onclick = e => {
 // RFC1918 + loopback/link-local = "your network" (green); everything else external (blue).
 const isLocal = ip => /^(10\.|127\.|169\.254\.|192\.168\.|172\.(1[6-9]|2\d|3[01])\.)/.test(ip)
   || ip === "::1" || ip.startsWith("fe80");
-let graph = null, latestEdges = [], latestNames = {};
+let graph = null, latestEdges = [], latestNames = {}, latestGeo = {}, latestAlerts = [], alertSrcs = new Set();
 const gNodes = new Map();                          // id -> node object, kept across ticks so layout is stable
 const nodeName = n => latestNames[n.id] || n.id;   // friendly name (vendor / hostname) or the raw IP
 
@@ -351,19 +365,24 @@ function ensureGraph() {
   graph = ForceGraph()(el)
     .width(el.clientWidth).height(el.clientHeight)
     .backgroundColor("rgba(0,0,0,0)")
-    .nodeLabel(n => latestNames[n.id] ? `${latestNames[n.id]} · ${n.id}` : n.id)
+    .nodeLabel(n => [latestNames[n.id], n.id, latestGeo[n.id]].filter(Boolean).join(" · "))
     .linkColor(() => "rgba(148,163,184,0.22)")
     .linkDirectionalParticles(2)
     .linkDirectionalParticleWidth(1.8)
     .linkDirectionalParticleColor(() => "#22d3ee")
     .onNodeClick(n => { graph.centerAt(n.x, n.y, 600); graph.zoom(4, 600); })
-    .nodeCanvasObject((n, ctx, scale) => {          // dot + name label (labels drawn once readable)
-      const r = n.local ? 4.5 : 3;
+    .nodeCanvasObject((n, ctx, scale) => {          // dot + name label; sources of recent alerts turn red
+      const r = n.local ? 4.5 : 3, flagged = alertSrcs.has(n.id);
       ctx.beginPath(); ctx.arc(n.x, n.y, r, 0, 2 * Math.PI);
-      ctx.fillStyle = n.local ? "#34d399" : "#60a5fa"; ctx.fill();
-      if (scale > 1.3 || n.local) {
-        const label = nodeName(n), text = label.length > 24 ? label.slice(0, 23) + "…" : label;
-        ctx.font = `500 ${11 / scale}px Inter, sans-serif`;
+      ctx.fillStyle = flagged ? "#f87171" : (n.local ? "#34d399" : "#60a5fa"); ctx.fill();
+      if (flagged) {
+        ctx.strokeStyle = "rgba(248,113,113,0.85)"; ctx.lineWidth = 1.5 / scale;
+        ctx.beginPath(); ctx.arc(n.x, n.y, r + 3, 0, 2 * Math.PI); ctx.stroke();
+      }
+      if (scale > 1.3 || n.local || flagged) {
+        const cc = latestGeo[n.id], base = cc ? `${nodeName(n)} · ${cc}` : nodeName(n);
+        const text = base.length > 26 ? base.slice(0, 25) + "…" : base;
+        ctx.font = `500 ${11 / scale}px "IBM Plex Sans", sans-serif`;
         ctx.textAlign = "center"; ctx.textBaseline = "top";
         ctx.fillStyle = "rgba(230,237,243,0.75)";
         ctx.fillText(text, n.x, n.y + r + 1);
@@ -402,6 +421,19 @@ addEventListener("resize", () => {
   }
 });
 
+// ---- Alerts (Phase 4) ----
+function renderAlerts(alerts) {
+  const el = $("alerts");
+  if (!alerts.length) {
+    el.innerHTML = `<div class="alerts-empty">No alerts yet.<br>Watching for port scans, ARP spoofing, DNS anomalies, and new devices.</div>`;
+    return;
+  }
+  el.innerHTML = alerts.map(a =>
+    `<div class="alert ${a.sev === "high" ? "high" : a.sev === "med" ? "med" : "low"}">`+
+    `<span class="sev">${esc(a.sev)}</span><span class="kind">${esc(a.kind)}</span>`+
+    `<span class="msg" title="${esc(a.msg)}">${esc(a.msg)}</span><span class="at">${esc(a.time)}</span></div>`).join("");
+}
+
 // ---- Tabs ----
 document.querySelectorAll(".tab").forEach(tab => {
   tab.onclick = () => {
@@ -412,6 +444,7 @@ document.querySelectorAll(".tab").forEach(tab => {
     for (const p of document.querySelectorAll(".tab-panel"))
       p.classList.toggle("active", p.id === "tab-" + tab.dataset.tab);
     if (tab.dataset.tab === "graph") showGraph();
+    if (tab.dataset.tab === "alerts") renderAlerts(latestAlerts);
   };
 });
 
@@ -478,9 +511,18 @@ function connect() {
         `<div class="track"><div class="bar" style="width:${Math.max(3, b/max*100)}%"></div></div></div>`;
     }).join("") : `<div class="empty">Awaiting traffic…</div>`;
 
+    // Alerts: badge always, feed when its tab is open, and flag the source nodes on the graph
+    latestAlerts = d.alerts || [];
+    alertSrcs = new Set(latestAlerts.slice(0, 25).map(a => a.src).filter(Boolean));
+    const badge = $("alert-badge");
+    if (d.alert_count) { badge.hidden = false; badge.textContent = d.alert_count > 999 ? "999+" : d.alert_count; }
+    else badge.hidden = true;
+    if ($("tab-alerts").classList.contains("active")) renderAlerts(latestAlerts);
+
     // Connection graph (draw only when its tab is visible; keep latest edges + names regardless)
     latestEdges = d.edges || [];
     latestNames = names;
+    latestGeo = d.geo || {};
     if (graph && $("tab-graph").classList.contains("active")) drawGraph(latestEdges);
 
     if (!paused && d.packets.length) addRows(d.packets);
