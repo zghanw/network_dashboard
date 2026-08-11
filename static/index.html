@@ -15,17 +15,14 @@
     --border:rgba(148,163,184,.10); --border-bright:rgba(148,163,184,.22);
     --text:#e6edf3; --dim:#8b98ac; --faint:#5b6a80;
     --cyan:#22d3ee; --green:#34d399; --blue:#60a5fa; --amber:#fbbf24;
-    --red:#f87171; --purple:#a78bfa; --scan:rgba(34,211,238,.7);
+    --red:#f87171; --purple:#a78bfa;
     --sans:"IBM Plex Sans",system-ui,"Segoe UI",sans-serif;
     --mono:"JetBrains Mono",Consolas,ui-monospace,monospace;
   }
   * { box-sizing:border-box; margin:0; }
   html,body { height:100%; }
   body {
-    background:
-      radial-gradient(1200px 600px at 80% -10%, rgba(34,211,238,.06), transparent 60%),
-      radial-gradient(900px 500px at -10% 110%, rgba(167,139,250,.05), transparent 55%),
-      var(--bg);
+    background:var(--bg);
     color:var(--text); font:14px/1.45 var(--sans); padding:14px; min-height:100dvh;
   }
   ::selection { background:var(--cyan); color:#001018; }
@@ -37,7 +34,7 @@
     border:1px solid var(--border); border-radius:12px;
   }
   .logo { width:34px; height:34px; border-radius:9px; display:grid; place-items:center;
-    background:radial-gradient(circle at 30% 30%,rgba(34,211,238,.25),rgba(34,211,238,.06));
+    background:rgba(34,211,238,.08);
     border:1px solid var(--border-bright); color:var(--cyan); flex-shrink:0; }
   .logo svg { width:20px; height:20px; }
   .titles h1 { font-size:21px; font-weight:700; letter-spacing:-.3px; line-height:1.1; }
