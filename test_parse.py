@@ -1,7 +1,7 @@
 """Self-check for the parse/classify path. Runs without Npcap: python test_parse.py"""
 from scapy.all import ARP, DNS, DNSQR, IP, TCP, UDP, Ether
 
-from main import RECENT, STATE, is_local, on_packet, origin_allowed, parse, vendor
+from main import RECENT, STATE, flow_key, is_local, on_packet, origin_allowed, parse, vendor
 
 https = parse(Ether() / IP(src="192.168.1.10", dst="1.1.1.1") / TCP(sport=51000, dport=443))
 assert https["proto"] == "HTTPS", https
@@ -33,5 +33,10 @@ assert not is_local("8.8.8.8") and not is_local("1.1.1.1")
 assert vendor("ac:de:48:11:22:33") == "Apple"      # known OUI prefix
 assert vendor("b8:27:eb:00:00:01") == "Raspberry Pi"
 assert vendor("ff:ff:ff:ff:ff:ff") is None and vendor(None) is None
+
+# Flow key is direction-canonical: both directions of a conversation map to one flow.
+fwd = flow_key({"proto": "HTTPS", "src": "192.168.1.5:5000", "dst": "1.1.1.1:443"})
+rev = flow_key({"proto": "HTTPS", "src": "1.1.1.1:443", "dst": "192.168.1.5:5000"})
+assert fwd == rev, (fwd, rev)
 
 print("all checks passed")

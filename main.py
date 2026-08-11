@@ -19,6 +19,7 @@ from fastapi.responses import FileResponse
 from scapy.all import ARP, DNS, ICMP, IP, IPv6, TCP, UDP, AsyncSniffer, Ether
 
 import geoip
+import history
 from detectors import detect
 
 app = FastAPI()
@@ -35,6 +36,7 @@ STATE = {
     "macs": {},  # local ip -> sender MAC, for vendor lookup
     "alerts": deque(maxlen=200),  # recent detector hits, newest first
     "alert_count": 0,  # running total, for the Alerts tab badge
+    "flows": {},  # canonical 5-tuple key -> [packets, bytes, first_ts, last_ts]
     "error": None,  # sniffer startup failure, shown in the UI
 }
 
@@ -140,8 +142,16 @@ def parse(pkt):
     }
 
 
+def flow_key(row):
+    """Direction-canonical connection key: sort the two endpoints so both directions of a
+    conversation collapse into one flow."""
+    lo, hi = sorted((row["src"], row["dst"]))
+    return (row["proto"], lo, hi)
+
+
 def on_packet(pkt):
     row = parse(pkt)
+    now = time.time()
     with LOCK:
         row["id"] = STATE["next_id"]
         STATE["next_id"] += 1
@@ -157,12 +167,28 @@ def on_packet(pkt):
         for a in detect(row, pkt):   # detector state is capture-thread-only; alerts live under LOCK
             STATE["alerts"].appendleft(a)
             STATE["alert_count"] += 1
+            history.record_alert(a)
+        key = flow_key(row)          # aggregate packets into connections
+        f = STATE["flows"].get(key)
+        if f:
+            f[0] += 1; f[1] += row["len"]; f[3] = now
+        else:
+            STATE["flows"][key] = [1, row["len"], now, now]
+        if len(STATE["flows"]) > 6000:   # ponytail: cap growth by evicting least-recently-seen
+            for k in sorted(STATE["flows"], key=lambda k: STATE["flows"][k][3])[:1000]:
+                del STATE["flows"][k]
         RECENT.append(row)
 
 
 @app.get("/")
 def index():
     return FileResponse("static/index.html")
+
+
+@app.get("/history")
+def history_endpoint(minutes: int = 30):
+    """Persisted metrics + alerts for the History tab (read-only; same-origin fetch)."""
+    return history.query(minutes)
 
 
 def origin_allowed(origin):
@@ -190,6 +216,7 @@ async def ws(sock: WebSocket):
                 edges = [[s, d, b] for (s, d), b in STATE["edges"].most_common(60)]
                 talkers = STATE["talkers"].most_common(8)
                 rel = {ip for s, d, _ in edges for ip in (s, d)} | {ip for ip, _ in talkers}
+                flows_top = sorted(STATE["flows"].items(), key=lambda kv: kv[1][1], reverse=True)[:40]
                 snapshot = {
                     "pps": STATE["total_packets"] - last_packets,
                     "bps": STATE["total_bytes"] - last_bytes,
@@ -202,6 +229,8 @@ async def ws(sock: WebSocket):
                     "geo": {ip: GEO[ip] for ip in rel if GEO.get(ip)},
                     "alerts": list(STATE["alerts"])[:60],
                     "alert_count": STATE["alert_count"],
+                    "flows": [{"proto": k[0], "a": k[1], "b": k[2], "packets": v[0],
+                               "bytes": v[1], "dur": round(v[3] - v[2], 1)} for k, v in flows_top],
                     "error": STATE["error"],
                     "packets": new[-100:],  # cap per tick; table doesn't need more
                 }
@@ -230,6 +259,11 @@ def main():
         STATE["error"] = (f"Capture failed: {e}. Install Npcap (npcap.com) and run this "
                           "script as Administrator.")
         print(STATE["error"])
+
+    def totals():
+        with LOCK:
+            return STATE["total_packets"], STATE["total_bytes"], STATE["alert_count"]
+    threading.Thread(target=history.run_sampler, args=(totals,), daemon=True).start()
 
     print(f"Dashboard: http://localhost:{args.port}")
     uvicorn.run(app, host="127.0.0.1", port=args.port, log_level="warning")

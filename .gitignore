@@ -38,3 +38,11 @@ Thumbs.db
 build/
 dist/
 *.egg-info/
+
+# Local history database (SQLite + WAL sidecars)
+*.db
+*.db-shm
+*.db-wal
+
+# Offline enrichment databases (downloaded, not versioned)
+data/

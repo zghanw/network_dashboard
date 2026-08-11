@@ -170,6 +170,17 @@
   .alert .at { margin-left:auto; font:500 11px var(--mono); color:var(--faint); flex-shrink:0; }
   .alerts-empty { padding:44px 24px; text-align:center; color:var(--faint); font:500 13px/1.6 var(--mono); }
 
+  /* ---------- Flows + History ---------- */
+  .flows-wrap { max-height:460px; overflow:auto; border:1px solid var(--border); border-radius:8px; }
+  .hist-select, #hist-refresh { background:var(--bg2); border:1px solid var(--border-bright); color:var(--text);
+    border-radius:8px; padding:7px 12px; font:600 12px var(--sans); cursor:pointer; }
+  #hist-refresh { color:var(--dim); }
+  #hist-refresh:hover { border-color:var(--cyan); color:var(--text); }
+  #tab-history .panel { margin-bottom:12px; }
+  #scrubber { width:100%; margin-top:14px; accent-color:var(--cyan); cursor:pointer; }
+  .scrub-readout { margin-top:10px; font:500 12px var(--mono); color:var(--dim); }
+  .scrub-readout b { color:var(--text); }
+
   /* ---------- Responsive ---------- */
   @media (max-width:1100px) { .kpis{grid-template-columns:repeat(3,1fr);} .grid{grid-template-columns:1fr;} }
   @media (max-width:640px) { .kpis{grid-template-columns:repeat(2,1fr);} #filter{width:100%;} .search{width:100%;} }
@@ -269,19 +280,35 @@
 </section>
 
 <section id="tab-flows" class="tab-panel" role="tabpanel" aria-label="Flows">
-  <div class="soon"><div>
-    <div class="phase">Phase 5</div>
-    <h3>Connections, not packets</h3>
-    <p>Packets grouped into flows by the 5-tuple (source, destination, ports, protocol), with bytes and duration per connection.</p>
-  </div></div>
+  <div class="flows-wrap">
+    <table>
+      <thead><tr><th>Proto</th><th>Endpoint A</th><th>Endpoint B</th>
+        <th style="text-align:right">Packets</th><th style="text-align:right">Bytes</th><th style="text-align:right">Duration</th></tr></thead>
+      <tbody id="flows"><tr><td colspan="6" style="padding:40px;text-align:center;color:var(--faint)">No connections yet…</td></tr></tbody>
+    </table>
+  </div>
 </section>
 
 <section id="tab-history" class="tab-panel" role="tabpanel" aria-label="History">
-  <div class="soon"><div>
-    <div class="phase">Phase 5</div>
-    <h3>Timeline replay</h3>
-    <p>Everything persisted to disk, with a scrubber to drag back through time and replay what happened on your network.</p>
-  </div></div>
+  <div class="panel">
+    <div class="feed-head">
+      <h2><span class="dot"></span>Throughput history</h2>
+      <select id="hist-range" class="hist-select" aria-label="History range" style="margin-left:auto">
+        <option value="30">Last 30 min</option>
+        <option value="60">Last hour</option>
+        <option value="180">Last 3 hours</option>
+        <option value="1440">Last 24 hours</option>
+      </select>
+      <button id="hist-refresh">Refresh</button>
+    </div>
+    <canvas id="histChart" height="210"></canvas>
+    <input type="range" id="scrubber" min="0" max="0" value="0" aria-label="Scrub timeline">
+    <div class="scrub-readout" id="scrub-readout">Leave the monitor running to build a timeline, then drag to scrub.</div>
+  </div>
+  <div class="panel">
+    <h2><span class="dot" style="background:var(--red)"></span>Alerts in window</h2>
+    <div id="hist-alerts"><div class="alerts-empty">No alerts in this window.</div></div>
+  </div>
 </section>
 
 <script>
@@ -434,6 +461,81 @@ function renderAlerts(alerts) {
     `<span class="msg" title="${esc(a.msg)}">${esc(a.msg)}</span><span class="at">${esc(a.time)}</span></div>`).join("");
 }
 
+// ---- Flows (Phase 5) ----
+let latestFlows = [];
+function renderFlows(flows) {
+  const el = $("flows");
+  if (!flows.length) {
+    el.innerHTML = `<tr><td colspan="6" style="padding:40px;text-align:center;color:var(--faint)">No connections yet…</td></tr>`;
+    return;
+  }
+  el.innerHTML = flows.map(f => {
+    const c = protoColor(f.proto);
+    return `<tr><td><span class="proto" style="color:${c};border-color:${c}55;background:${c}12">${esc(f.proto)}</span></td>`+
+      `<td>${esc(f.a)}</td><td>${esc(f.b)}</td>`+
+      `<td class="num">${f.packets.toLocaleString()}</td><td class="num">${fmtBytes(f.bytes)}</td>`+
+      `<td class="num">${f.dur}s</td></tr>`;
+  }).join("");
+}
+
+// ---- History + timeline replay (Phase 5) ----
+let histChart = null, histMetrics = [], scrubIndex = -1;
+const scrubLine = { id: "scrubLine", afterDraw(c) {   // amber marker the scrubber drives
+  if (scrubIndex < 0 || !c.scales.x) return;
+  const x = c.scales.x.getPixelForValue(scrubIndex), a = c.chartArea, ctx = c.ctx;
+  ctx.save(); ctx.strokeStyle = "#fbbf24"; ctx.lineWidth = 1.5;
+  ctx.beginPath(); ctx.moveTo(x, a.top); ctx.lineTo(x, a.bottom); ctx.stroke(); ctx.restore();
+}};
+function ensureHistChart() {
+  if (histChart) return;
+  histChart = new Chart($("histChart"), {
+    type: "line",
+    data: { labels: [], datasets: [{ data: [], borderColor: "#22d3ee", backgroundColor: cyanFill,
+      fill: true, pointRadius: 0, borderWidth: 2, tension: .3 }] },
+    options: { animation: false, plugins: { legend: { display: false } },
+      scales: { x: { grid: { display: false }, ticks: { color: "#5b6a80", maxTicksLimit: 8, font: { family: "JetBrains Mono", size: 9 } } },
+        y: { beginAtZero: true, grid: { color: "rgba(148,163,184,.07)" }, border: { display: false },
+          ticks: { color: "#5b6a80", font: { family: "JetBrains Mono", size: 10 }, callback: v => fmtBytes(v) + "/s" } } } },
+    plugins: [scrubLine]
+  });
+}
+function renderHistAlerts(alerts) {
+  const el = $("hist-alerts");
+  el.innerHTML = alerts.length ? alerts.map(a =>
+    `<div class="alert ${a.sev === "high" ? "high" : a.sev === "med" ? "med" : "low"}">`+
+    `<span class="sev">${esc(a.sev)}</span><span class="kind">${esc(a.kind)}</span>`+
+    `<span class="msg" title="${esc(a.msg)}">${esc(a.msg)}</span>`+
+    `<span class="at">${new Date(a.ts * 1000).toLocaleTimeString()}</span></div>`).join("")
+    : `<div class="alerts-empty">No alerts in this window.</div>`;
+}
+async function loadHistory() {
+  ensureHistChart();
+  try {
+    const data = await (await fetch(`/history?minutes=${$("hist-range").value}`)).json();
+    histMetrics = data.metrics || [];
+    histChart.data.labels = histMetrics.map(m => new Date(m.ts * 1000).toLocaleTimeString());
+    histChart.data.datasets[0].data = histMetrics.map(m => m.bps);
+    scrubIndex = -1; histChart.update();
+    const sc = $("scrubber"); sc.max = Math.max(0, histMetrics.length - 1); sc.value = sc.max;
+    renderHistAlerts(data.alerts || []);
+    $("scrub-readout").textContent = histMetrics.length
+      ? `${histMetrics.length} seconds recorded · drag to scrub`
+      : "No history yet. Leave the monitor running to build a timeline.";
+  } catch (e) {
+    $("scrub-readout").textContent = "Could not load history.";
+  }
+}
+$("scrubber").oninput = e => {
+  if (!histMetrics.length) return;
+  scrubIndex = Math.min(+e.target.value, histMetrics.length - 1);
+  const pt = histMetrics[scrubIndex];
+  $("scrub-readout").innerHTML =
+    `<b>${new Date(pt.ts * 1000).toLocaleTimeString()}</b> · ${fmtBytes(pt.bps)}/s · ${pt.pps} pps · ${pt.alerts} alerts total`;
+  histChart.update();
+};
+$("hist-range").onchange = loadHistory;
+$("hist-refresh").onclick = loadHistory;
+
 // ---- Tabs ----
 document.querySelectorAll(".tab").forEach(tab => {
   tab.onclick = () => {
@@ -445,6 +547,8 @@ document.querySelectorAll(".tab").forEach(tab => {
       p.classList.toggle("active", p.id === "tab-" + tab.dataset.tab);
     if (tab.dataset.tab === "graph") showGraph();
     if (tab.dataset.tab === "alerts") renderAlerts(latestAlerts);
+    if (tab.dataset.tab === "flows") renderFlows(latestFlows);
+    if (tab.dataset.tab === "history") loadHistory();
   };
 });
 
@@ -518,6 +622,10 @@ function connect() {
     if (d.alert_count) { badge.hidden = false; badge.textContent = d.alert_count > 999 ? "999+" : d.alert_count; }
     else badge.hidden = true;
     if ($("tab-alerts").classList.contains("active")) renderAlerts(latestAlerts);
+
+    // Flows (render only when its tab is open)
+    latestFlows = d.flows || [];
+    if ($("tab-flows").classList.contains("active")) renderFlows(latestFlows);
 
     // Connection graph (draw only when its tab is visible; keep latest edges + names regardless)
     latestEdges = d.edges || [];
