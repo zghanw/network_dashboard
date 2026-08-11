@@ -61,4 +61,6 @@ def country(ip):
     if i < 0:
         return None
     end, cc = ranges[i]
-    return cc if n <= end else None
+    if n > end or cc == "ZZ":   # ZZ = reserved / unknown; treat as no country
+        return None
+    return cc
