@@ -128,8 +128,6 @@
   .tab:hover { color:var(--text); }
   .tab.active { color:var(--text); border-bottom-color:var(--cyan); }
   .tab:focus-visible { outline:2px solid var(--cyan); outline-offset:-2px; border-radius:4px; }
-  .tab .soon-pill { font:600 9px/1 var(--mono); letter-spacing:.5px; text-transform:uppercase;
-    color:var(--faint); border:1px solid var(--border-bright); border-radius:10px; padding:2px 6px; }
   .tab-panel { display:none; }
   .tab-panel.active { display:block; }
   .soon { display:grid; place-items:center; min-height:360px; text-align:center;
@@ -212,10 +210,10 @@
 
 <nav class="tabs" role="tablist" aria-label="Views">
   <button class="tab active" data-tab="overview" role="tab" aria-selected="true">Overview</button>
-  <button class="tab" data-tab="graph" role="tab" aria-selected="false">Graph <span class="soon-pill">soon</span></button>
+  <button class="tab" data-tab="graph" role="tab" aria-selected="false">Graph</button>
   <button class="tab" data-tab="alerts" role="tab" aria-selected="false">Alerts <span class="tab-badge" id="alert-badge" hidden></span></button>
-  <button class="tab" data-tab="flows" role="tab" aria-selected="false">Flows <span class="soon-pill">soon</span></button>
-  <button class="tab" data-tab="history" role="tab" aria-selected="false">History <span class="soon-pill">soon</span></button>
+  <button class="tab" data-tab="flows" role="tab" aria-selected="false">Flows</button>
+  <button class="tab" data-tab="history" role="tab" aria-selected="false">History</button>
 </nav>
 
 <section id="tab-overview" class="tab-panel active" role="tabpanel" aria-label="Overview">
