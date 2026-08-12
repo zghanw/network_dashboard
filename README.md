@@ -12,21 +12,6 @@ A local, real-time network monitor and blue-team console. It captures live traff
 
 > **Local-first and offline.** The server binds to `127.0.0.1`, reads only your own segment, and keeps every byte on-device. No cloud, no account, no telemetry. The one optional network fetch is a free offline GeoIP database you download once.
 
-## Screenshots
-
-_Live captures go in [`assets/`](assets/). Recommended: the Overview tab, the connection Graph, the Alerts feed, and the History timeline scrubber._
-
-**Overview**
-![Overview tab](assets/screenshot_overview.png)
-
-**Connection Graph**
-![Connection graph](assets/screenshot_graph.png)
-
-**Alerts and History replay**
-![Alerts and history](assets/screenshot_alerts_history.png)
-
----
-
 ## Table of Contents
 
 1. [Overview](#overview)
