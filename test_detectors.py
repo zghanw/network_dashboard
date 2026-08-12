@@ -31,5 +31,9 @@ assert dns and dns["kind"] == "DNS anomaly", dns
 # A normal short name is not flagged.
 ok = dns_anomaly(row("10.0.0.5", "8.8.8.8"), Ether() / IP() / UDP() / DNS(qd=DNSQR(qname="example.com")))
 assert ok is None, ok
+# Reverse-DNS PTR queries are long by design and must not be flagged.
+rev = ".".join("f" * 32) + ".ip6.arpa"   # ~72-char IPv6 reverse-lookup name
+rev_pkt = Ether() / IP() / UDP() / DNS(qd=DNSQR(qname=rev))
+assert dns_anomaly(row("10.0.0.5", "8.8.8.8"), rev_pkt) is None, "reverse DNS must not alert"
 
 print("all detector checks passed")

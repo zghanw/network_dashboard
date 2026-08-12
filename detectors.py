@@ -82,9 +82,11 @@ def dns_anomaly(row, pkt):
     if DNS not in pkt or not pkt[DNS].qd:
         return None
     try:
-        name = pkt[DNSQR].qname.decode("utf-8", "replace").rstrip(".")
+        name = pkt[DNSQR].qname.decode("utf-8", "replace").rstrip(".").lower()
     except Exception:
         return None
+    if name.endswith((".ip6.arpa", ".in-addr.arpa")):
+        return None  # reverse-DNS PTR lookups are long by design (incl. our own enrichment), not anomalies
     if len(name) >= DNS_NAME_MAX and time.time() - _dns_fired.get(name, 0) > 30:
         _dns_fired[name] = time.time()
         return _alert("med", "DNS anomaly", f"long name ({len(name)} chars): {name[:48]}...", _ip(row["src"]))
