@@ -35,7 +35,10 @@
   }
   .titles h1 { font-size:21px; font-weight:700; letter-spacing:-.3px; line-height:1.1; }
   .titles h1::after { content:""; display:inline-block; width:4px; height:0.82em;
-    margin-left:9px; background:var(--cyan); vertical-align:-2px; }  /* prompt cursor, static */
+    margin-left:9px; background:var(--cyan); vertical-align:-2px; }  /* prompt cursor */
+  /* solid when live; blinks only while the socket is down/reconnecting (motion = real state) */
+  body.reconnecting .titles h1::after { animation:cursor-blink 1.06s step-end infinite; }
+  @keyframes cursor-blink { 0%,100%{opacity:1;} 50%{opacity:0;} }
   .titles p { font-size:11px; color:var(--dim); letter-spacing:1.5px; text-transform:uppercase; }
   .head-right { margin-left:auto; display:flex; align-items:center; gap:16px; }
   .clock { font:500 12px/1 var(--mono); color:var(--faint); text-align:right; }
@@ -567,8 +570,8 @@ function addRows(packets) {
 function connect() {
   const sock = new WebSocket(`ws://${location.host}/ws`);
   const status = $("status");
-  sock.onopen  = () => { status.textContent = "live"; status.classList.add("ok"); };
-  sock.onclose = () => { status.textContent = "offline"; status.classList.remove("ok"); setTimeout(connect, 2000); };
+  sock.onopen  = () => { status.textContent = "live"; status.classList.add("ok"); document.body.classList.remove("reconnecting"); };
+  sock.onclose = () => { status.textContent = "offline"; status.classList.remove("ok"); document.body.classList.add("reconnecting"); setTimeout(connect, 2000); };
   sock.onmessage = ev => {
     const d = JSON.parse(ev.data);
 
@@ -629,6 +632,7 @@ function connect() {
     else if (paused) $("count").textContent = rowsEl.children.length + " shown · PAUSED";
   };
 }
+document.body.classList.add("reconnecting");  // blink until the first connection lands
 connect();
 </script>
 </body>
