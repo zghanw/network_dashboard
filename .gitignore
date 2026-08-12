@@ -46,3 +46,8 @@ dist/
 
 # Offline enrichment databases (downloaded, not versioned)
 data/
+
+# AI-generated design docs (impeccable) — kept local, not versioned
+PRODUCT.md
+DESIGN.md
+.impeccable/
