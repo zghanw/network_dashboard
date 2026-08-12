@@ -133,8 +133,10 @@ A background sampler writes one metrics row per second plus every alert to SQLit
 ### Prerequisites
 
 - **Python 3.9+**
-- **Npcap** (Windows packet-capture driver): install from [npcap.com](https://npcap.com/), with "WinPcap API-compatible mode" enabled.
-- **Administrator privileges** - raw packet capture requires them.
+- **A packet-capture driver:**
+  - Windows: [Npcap](https://npcap.com/), installed with "WinPcap API-compatible mode" enabled.
+  - macOS / Linux: libpcap (usually preinstalled, otherwise available via your package manager).
+- **Elevated privileges** - raw capture requires Administrator on Windows or `sudo` on macOS/Linux.
 
 ### Install
 
@@ -146,10 +148,14 @@ pip install -r requirements.txt
 
 ### Run
 
-Launch from an **Administrator** terminal, then open the printed URL:
+Launch with elevated privileges (raw capture requires it), then open the printed URL:
 
 ```bash
+# Windows (Administrator terminal)
 python main.py
+
+# macOS / Linux
+sudo python main.py
 ```
 
 Then visit **http://localhost:8000**.
