@@ -33,11 +33,9 @@
     background:linear-gradient(180deg,var(--panel2),var(--panel));
     border:1px solid var(--border); border-radius:12px;
   }
-  .logo { width:34px; height:34px; border-radius:9px; display:grid; place-items:center;
-    background:rgba(34,211,238,.08);
-    border:1px solid var(--border-bright); color:var(--cyan); flex-shrink:0; }
-  .logo svg { width:20px; height:20px; }
   .titles h1 { font-size:21px; font-weight:700; letter-spacing:-.3px; line-height:1.1; }
+  .titles h1::after { content:""; display:inline-block; width:4px; height:0.82em;
+    margin-left:9px; background:var(--cyan); vertical-align:-2px; }  /* prompt cursor, static */
   .titles p { font-size:11px; color:var(--dim); letter-spacing:1.5px; text-transform:uppercase; }
   .head-right { margin-left:auto; display:flex; align-items:center; gap:16px; }
   .clock { font:500 12px/1 var(--mono); color:var(--faint); text-align:right; }
@@ -188,10 +186,6 @@
 <body>
 
 <header>
-  <div class="logo">
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-      <path d="M12 2 4 5v6c0 5 3.4 8.5 8 11 4.6-2.5 8-6 8-11V5l-8-3Z"/><path d="M3 12h4l2-4 3 8 2-5 2 1h5"/></svg>
-  </div>
   <div class="titles">
     <h1>NETWORK MONITOR</h1>
     <p>Live Traffic Analysis · Blue Team Console</p>
