@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Network Monitor — SOC Console</title>
+<title>Network Dashboard</title>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
 <script src="https://cdn.jsdelivr.net/npm/force-graph@1"></script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -411,8 +411,16 @@ function ensureGraph() {
       ctx.fillStyle = color;
       ctx.beginPath(); ctx.arc(n.x, n.y, (n.local ? 4.5 : 3) + 3, 0, 2 * Math.PI); ctx.fill();
     });
+  // Keep the layout compact and let it settle: cap the repulsion range so disconnected
+  // clusters stop pushing each other away (they used to drift apart and shrink), shorten
+  // links, and cool down instead of simulating forever. The default centre force keeps it
+  // anchored around the middle.
+  graph.d3Force("charge").strength(-45).distanceMax(220);
+  graph.d3Force("link").distance(32);
+  graph.cooldownTime(4000);
 }
 
+let graphSig = "";
 function drawGraph(edges) {
   if (!graph) return;
   const seen = new Set(), links = [];
@@ -422,8 +430,16 @@ function drawGraph(edges) {
     links.push({ source: s, target: d, value: b });
   }
   for (const id of [...gNodes.keys()]) if (!seen.has(id)) gNodes.delete(id);   // drop nodes no longer in the top edges
-  graph.graphData({ nodes: [...gNodes.values()], links });
   $("graph-empty").style.display = edges.length ? "none" : "grid";
+  // Rebuild (which reheats the layout) ONLY when the node/edge set changes. Rebuilding every
+  // tick reheated the simulation nonstop, so clusters kept drifting and the nodes shrank.
+  // When membership is unchanged we leave the settled layout alone.
+  const sig = [...seen].sort().join(",") + "|" + links.map(l => l.source + ">" + l.target).sort().join(",");
+  if (sig === graphSig) return;
+  graphSig = sig;
+  graph.graphData({ nodes: [...gNodes.values()], links });
+  clearTimeout(graph.__fit);   // reframe once it settles so everything stays on screen
+  graph.__fit = setTimeout(() => { if ($("tab-graph").classList.contains("active")) graph.zoomToFit(500, 70); }, 1400);
 }
 
 function showGraph() {                             // lazy-init: the container has real size only once visible
