@@ -104,6 +104,8 @@ def new_device(row, pkt):
     src = _ip(row["src"])
     if not _is_private(src) or src in _seen_hosts:
         return None
+    if ip_address(src).version != 4:
+        return None  # IPv6 (link-local/privacy) addresses rotate by design, not a stable device identity
     _seen_hosts.add(src)
     if time.time() - _start < WARMUP:   # everything during warm-up is baseline, not an alert
         return None

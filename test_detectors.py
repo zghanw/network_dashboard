@@ -1,7 +1,8 @@
 """Self-check for the detectors. Runs without Npcap: python test_detectors.py"""
 from scapy.all import ARP, DNS, DNSQR, IP, TCP, UDP, Ether
 
-from detectors import SCAN_TARGETS, arp_spoof, dns_anomaly, port_scan
+import detectors
+from detectors import SCAN_TARGETS, arp_spoof, dns_anomaly, new_device, port_scan
 
 def row(src, dst):
     return {"src": f"{src}:11111", "dst": f"{dst}:0"}
@@ -44,5 +45,16 @@ assert ok is None, ok
 rev = ".".join("f" * 32) + ".ip6.arpa"   # ~72-char IPv6 reverse-lookup name
 rev_pkt = Ether() / IP() / UDP() / DNS(qd=DNSQR(qname=rev))
 assert dns_anomaly(row("10.0.0.5", "8.8.8.8"), rev_pkt) is None, "reverse DNS must not alert"
+
+# New device: IPv4 first sighting alerts once, past warm-up.
+detectors._start = 0   # fast-forward past WARMUP
+seen = new_device(row("192.168.1.50", "0.0.0.0"), Ether())
+assert seen and seen["kind"] == "New device" and seen["sev"] == "low", seen
+assert new_device(row("192.168.1.50", "0.0.0.0"), Ether()) is None, "repeat sighting must not re-alert"
+# Regression: IPv6 addresses rotate (SLAAC privacy extensions, link-local churn), so the
+# same physical host kept re-alerting as "new" every time its address changed — 45+ alerts
+# in a few minutes on a real network. IPv4 stays the device identity; IPv6 never alerts.
+assert new_device(row("fe80::1234:5678:9abc:def0", "ff02::1"), Ether()) is None, "IPv6 must not alert"
+assert new_device(row("fc01::abcd:1", "ff02::1"), Ether()) is None, "IPv6 (ULA) must not alert"
 
 print("all detector checks passed")
