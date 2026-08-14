@@ -3,7 +3,6 @@ from scapy.all import ARP, DNS, DNSQR, IP, TCP, UDP, Ether
 
 from detectors import SCAN_TARGETS, arp_spoof, dns_anomaly, port_scan
 
-
 def row(src, dst):
     return {"src": f"{src}:11111", "dst": f"{dst}:0"}
 
@@ -16,6 +15,16 @@ for i in range(SCAN_TARGETS):
     if a:
         fired = a
 assert fired and fired["kind"] == "Port scan" and fired["sev"] == "high", fired
+
+# Regression: a server replying across many established connections uses the client's
+# distinct ephemeral port as dport on every reply, which used to look identical to the
+# server "probing" that many targets. Found live: 160.79.104.10 (a normal HTTPS server)
+# was flagged as a port scanner on every busy page load. ACK/SYN-ACK replies must not count.
+for i in range(SCAN_TARGETS):
+    ack_reply = Ether() / IP(src="10.0.0.6", dst="10.0.0.7") / TCP(sport=443, dport=2000 + i, flags="A")
+    assert port_scan(row("10.0.0.6", "10.0.0.7"), ack_reply) is None, "ACK replies must not alert"
+    syn_ack = Ether() / IP(src="10.0.0.6", dst="10.0.0.7") / TCP(sport=443, dport=3000 + i, flags="SA")
+    assert port_scan(row("10.0.0.6", "10.0.0.7"), syn_ack) is None, "SYN-ACK replies must not alert"
 
 # ARP spoof: first binding is baseline; a second MAC for the same IP alerts.
 r = row("0.0.0.0", "0.0.0.0")

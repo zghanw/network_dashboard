@@ -47,6 +47,9 @@ _scan_fired = {}                  # src -> ts of last alert (rate-limit repeats)
 def port_scan(row, pkt):
     if TCP not in pkt:
         return None
+    flags = pkt[TCP].flags
+    if not flags.S or flags.A:
+        return None  # bare SYNs only; ACK replies on established conns aren't a "probe"
     src, now = _ip(row["src"]), time.time()
     dq = _scan_seen[src]
     dq.append((now, (_ip(row["dst"]), pkt[TCP].dport)))
